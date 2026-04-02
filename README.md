@@ -1,107 +1,121 @@
-Project Blueprint: AI Resume Evaluator
-Tech Stack
-Framework: Next.js
+# AI Resume Evaluator
 
-Language: TypeScript
+AI Resume Evaluator is a full-stack web app that screens resumes with AI.
+Users upload PDF resumes, enter a target role, and get ranked results with clear strengths, weaknesses, missing skills, and an overall fit score.
 
-Styling: Tailwind CSS + Shadcn UI
-USE THIS DESIGN SYSTEM WITH THE HELP OF FIGMA MCP: https://www.figma.com/design/xE17Qj57p4OYoqqwitup5s/-shadcn-ui---Design-System--Community-
+This project is built for portfolio demonstration of practical full-stack work: file upload handling, OCR fallback, LLM integration, validation, rate limiting, and polished UI.
 
-PDF Processing, extract to text: pdf-parse
+## What The Project Does
 
-🛠️ Infrastructure Setup
+- Accepts up to 10 PDF resumes in one submission
+- Lets the user add a role title and optional job description/context
+- Extracts resume text from each PDF
+- Uses OCR fallback when PDF text extraction is weak or empty
+- Sends extracted text to an AI model for strict recruiter-style evaluation
+- Returns structured scoring and feedback per candidate
+- Sorts candidates by score and shows details in a modal
 
-- We're using groq's llama-3.3-70b-versatile for the AI model, i put the api key in .env.local
-  Heres the usage of the Vercel AI Sdk
+## Main User Flow
 
-First, install the ai package and the Groq provider @ai-sdk/groq:
+1. User enters role title and optional job context.
+2. User uploads resume PDFs through drag-and-drop.
+3. App validates file count, file type, and file size.
+4. Backend processes files in batches and analyzes each resume.
+5. UI shows ranked results and detailed feedback per candidate.
 
-```bash
-npm install ai @ai-sdk/groq
-```
+## Core Features
 
-Then, you can use the Groq provider to generate text. By default, the provider will look for GROQ_API_KEY as the API key.
+- Batch analysis: up to 10 resumes at once
+- Strict AI grading: score from 0 to 100
+- Structured response fields: name, rating, insight, pros, cons, missing skills
+- OCR fallback for scanned/image-heavy PDFs
+- Rate-limited analyze endpoint (5 requests per hour per IP)
+- Progress state and loading feedback in UI
+- Light/dark theme toggle
 
-```typescript
-import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+## Tech Stack And What Each Part Is Used For
 
-const result = await generateText({
-  model: groq("llama-3.3-70b-versatile"),
-  messages: [{ role: "user", content: "Hello, how are you?" }],
-});
+| Technology                                       | Purpose In This Project                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------- |
+| Next.js 16 (App Router)                          | Full-stack framework for UI pages and API route handling          |
+| React 19                                         | Component-based frontend and client state management              |
+| TypeScript                                       | Type safety for API responses, state, and shared models           |
+| Tailwind CSS 4                                   | Utility-first styling and layout system                           |
+| shadcn UI (base-nova style)                      | Reusable UI components and design tokens                          |
+| @base-ui/react                                   | Primitive UI behavior used by custom UI components                |
+| lucide-react                                     | Icons across uploader, results, modal, and controls               |
+| react-dropzone                                   | Drag-and-drop PDF upload experience                               |
+| ai + @ai-sdk/groq                                | LLM integration layer and Groq model access                       |
+| Groq llama-3.3-70b-versatile                     | Resume evaluation model                                           |
+| zod                                              | Output schema validation for AI response structure                |
+| pdf-parse                                        | Primary text extraction from standard PDFs                        |
+| OCR.space API                                    | Fallback extraction when PDFs are scanned or image-based          |
+| @upstash/redis + @upstash/ratelimit              | Sliding-window rate limiting for API protection and usage control |
+| class-variance-authority + clsx + tailwind-merge | Clean variant styling and utility class merging                   |
 
-console.log(result.text);
-```
+## Architecture Overview
 
-AI Logic & Structured Output
-To ensure the "Critical Recruiter" persona and consistent data, use Structured Outputs with the following schema.
+### Frontend
 
-System Prompt
-"You are a world-class Technical Recruiter known for being extremely critical and detail-oriented. Your task is to evaluate a candidate's resume against a specific job role. If a candidate is missing a core technology or lacks evidence of impact, you must lower the rating. Provide feedback in basic, clear language."
+- Main page manages three app states:
+  - input
+  - analyzing
+  - results
+- Reusable components handle upload, table view, and detail modal.
+- Results are presented with score-based visual cues.
 
-Response Schema (TypeScript)
-TypeScript
-const ResumeSchema = {
-type: "object",
-properties: {
-name: { type: "string" },
-rating: { type: "number", description: "Score from 0-100" },
-ai_insights: { type: "string", description: "Critical summary of fit" },
-pros: { type: "array", items: { type: "string" } },
-cons: { type: "array", items: { type: "string" } },
-missing_skills: { type: "array", items: { type: "string" } }
-},
-required: ["name", "rating", "ai_insights", "pros", "cons", "missing_skills"],
-additionalProperties: false,
-}
+### Backend
 
-🌊 User Flow & UI Components
+- Single analyze API route handles:
+  - request validation
+  - rate limit checks
+  - PDF parsing
+  - OCR fallback
+  - AI analysis
+  - score sorting
+- Files are processed in controlled concurrency batches to avoid overloading services.
 
-1. The Landing/Input Page
-   Component: Input (Role Title) + Textarea (Job Context)
+### Data Shape
 
-Component: FileUploader (Custom drag-and-drop using react-dropzone)
-Constraint: Frontend validation to prevent more than 10 PDF files from being selected.
+Each analyzed resume returns:
 
-2. The Analysis State
-   Logic: Once "Analyze" is clicked:
+- name
+- rating (0-100)
+- ai_insights
+- pros
+- cons
+- missing_skills
+- fileName
 
-Validate: files.length <= 10.
+## Validation And Guardrails
 
-Loop through files → Extract text via pdf-parse.
+- Maximum files per request: 10
+- Allowed file type: PDF only
+- Maximum file size: 2 MB each
+- Minimum extracted text threshold before OCR fallback
+- Graceful fallback result when text cannot be extracted or AI analysis fails
 
-Batch send to Groq model
+## Project Structure
 
-UI: Show a Progress Bar or a "Scanning" animation over the resumes.
+- app: Next.js app pages, layout, and API route
+- components: feature components (uploader, results table, detail modal, theming)
+- components/ui: reusable UI primitives and styled wrappers
+- lib: shared logic (OCR, rate limit, types, utilities)
+- public: static files and sample resume assets
 
-3. The Results Dashboard
-   Table: Use Shadcn Table.
+## Notable Implementation Details
 
-Columns: Name, Rating (Color-coded), Details (Button).
-Score > 80: Green text.
-Score 50-79: Amber/Orange text.
-Score < 50: Red text.
+- AI prompt is intentionally strict to simulate a critical technical recruiter.
+- AI output is parsed and validated against a strict schema for consistency.
+- OCR is only used as a fallback to keep normal PDF analysis fast.
+- Rate limiting is IP-based and enforced server-side.
+- App returns useful partial results even when one file fails.
 
-Sorting: Automatically sort the array by rating descending.
+## Current Scope And Limits
 
-4. Detailed View (Modal)
-   Component: Shadcn Dialog.
+- No persistent database storage for analysis history
+- Single role target per analysis batch
+- Synchronous request flow (no queue worker)
+- OCR quality depends on scan quality
 
-Layout:
-
-Header: Name & Large Score.
-
-Body: Two-column grid.
-
-Left: Pros/Cons (Bullet points).
-
-Right: Missing Skills (Red Badges).
-
-Footer: Critical AI Insight paragraph.
-
-📈 Credit Optimization & Constraints
-Batch Limit: Maximum 10 PDFs per analysis. This prevents Vercel "Function Timeout" errors and manages your token spend.
-
-Rate Limiting: Implement a limit (e.g., 5 analysis requests per hour), I dont know what tech stack to use for this, but the idea is rate limit for the analyze button, 5 analyzes per hour
-File Size: Limit uploads to 2MB per file.
+This project focuses on real-world resume screening workflow design, practical backend safeguards, and clear frontend delivery of AI-generated evaluation results.
