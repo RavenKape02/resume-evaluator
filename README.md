@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Project Blueprint: AI Resume Evaluator
+Tech Stack
+Framework: Next.js
 
-## Getting Started
+Language: TypeScript
 
-First, run the development server:
+Styling: Tailwind CSS + Shadcn UI
+USE THIS DESIGN SYSTEM WITH THE HELP OF FIGMA MCP: https://www.figma.com/design/xE17Qj57p4OYoqqwitup5s/-shadcn-ui---Design-System--Community-
+
+PDF Processing, extract to text: pdf-parse
+
+🛠️ Infrastructure Setup
+
+- We're using groq's llama-3.3-70b-versatile for the AI model, i put the api key in .env.local
+  Heres the usage of the Vercel AI Sdk
+
+First, install the ai package and the Groq provider @ai-sdk/groq:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install ai @ai-sdk/groq
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then, you can use the Groq provider to generate text. By default, the provider will look for GROQ_API_KEY as the API key.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```typescript
+import { generateText } from "ai";
+import { groq } from "@ai-sdk/groq";
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+const result = await generateText({
+  model: groq("llama-3.3-70b-versatile"),
+  messages: [{ role: "user", content: "Hello, how are you?" }],
+});
 
-## Learn More
+console.log(result.text);
+```
 
-To learn more about Next.js, take a look at the following resources:
+AI Logic & Structured Output
+To ensure the "Critical Recruiter" persona and consistent data, use Structured Outputs with the following schema.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+System Prompt
+"You are a world-class Technical Recruiter known for being extremely critical and detail-oriented. Your task is to evaluate a candidate's resume against a specific job role. If a candidate is missing a core technology or lacks evidence of impact, you must lower the rating. Provide feedback in basic, clear language."
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Response Schema (TypeScript)
+TypeScript
+const ResumeSchema = {
+type: "object",
+properties: {
+name: { type: "string" },
+rating: { type: "number", description: "Score from 0-100" },
+ai_insights: { type: "string", description: "Critical summary of fit" },
+pros: { type: "array", items: { type: "string" } },
+cons: { type: "array", items: { type: "string" } },
+missing_skills: { type: "array", items: { type: "string" } }
+},
+required: ["name", "rating", "ai_insights", "pros", "cons", "missing_skills"],
+additionalProperties: false,
+}
 
-## Deploy on Vercel
+🌊 User Flow & UI Components
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. The Landing/Input Page
+   Component: Input (Role Title) + Textarea (Job Context)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Component: FileUploader (Custom drag-and-drop using react-dropzone)
+Constraint: Frontend validation to prevent more than 10 PDF files from being selected.
+
+2. The Analysis State
+   Logic: Once "Analyze" is clicked:
+
+Validate: files.length <= 10.
+
+Loop through files → Extract text via pdf-parse.
+
+Batch send to Groq model
+
+UI: Show a Progress Bar or a "Scanning" animation over the resumes.
+
+3. The Results Dashboard
+   Table: Use Shadcn Table.
+
+Columns: Name, Rating (Color-coded), Details (Button).
+Score > 80: Green text.
+Score 50-79: Amber/Orange text.
+Score < 50: Red text.
+
+Sorting: Automatically sort the array by rating descending.
+
+4. Detailed View (Modal)
+   Component: Shadcn Dialog.
+
+Layout:
+
+Header: Name & Large Score.
+
+Body: Two-column grid.
+
+Left: Pros/Cons (Bullet points).
+
+Right: Missing Skills (Red Badges).
+
+Footer: Critical AI Insight paragraph.
+
+📈 Credit Optimization & Constraints
+Batch Limit: Maximum 10 PDFs per analysis. This prevents Vercel "Function Timeout" errors and manages your token spend.
+
+Rate Limiting: Implement a limit (e.g., 5 analysis requests per hour), I dont know what tech stack to use for this, but the idea is rate limit for the analyze button, 5 analyzes per hour
+File Size: Limit uploads to 2MB per file.
