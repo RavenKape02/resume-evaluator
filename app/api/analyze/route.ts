@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
-import { PDFParse } from "pdf-parse";
 import { rateLimiter } from "@/lib/rate-limit";
 import { ResumeAnalysisSchema } from "@/lib/types";
 import { extractTextWithOcr } from "@/lib/ocr";
@@ -108,25 +107,12 @@ export async function POST(request: NextRequest) {
 
     async function processFile(file: File) {
       const arrayBuffer = await file.arrayBuffer();
-      const bufferCopy = arrayBuffer.slice(0);
-
       let extractedText = "";
 
       try {
-        const uint8 = new Uint8Array(arrayBuffer);
-        const parser = new PDFParse(uint8);
-        const pdfData = await parser.getText();
-        extractedText = pdfData.text;
-      } catch {
-        // pdf-parse failed, will try OCR fallback
-      }
-
-      if (extractedText.trim().length < MIN_TEXT_LENGTH) {
-        try {
-          extractedText = await extractTextWithOcr(bufferCopy);
-        } catch (ocrErr) {
-          console.error(`OCR fallback failed for ${file.name}:`, ocrErr);
-        }
+        extractedText = await extractTextWithOcr(arrayBuffer);
+      } catch (ocrErr) {
+        console.error(`OCR extraction failed for ${file.name}:`, ocrErr);
       }
 
       if (extractedText.trim().length < MIN_TEXT_LENGTH) {
