@@ -19,10 +19,48 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_FILES = 10;
 const MIN_TEXT_LENGTH = 50;
 
+function repairJson(text: string): string {
+  let json = text.trim();
+
+  json = json
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]");
+
+  json = json.replace(/\/\/.*$/gm, "");
+
+  const lines = json.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith("#") || trimmed === "") {
+      lines[i] = "";
+    }
+  }
+  json = lines.filter((l) => l !== "").join("\n");
+
+  return json;
+}
+
 function parseJsonResponse(text: string) {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
-  return ResumeAnalysisSchema.parse(JSON.parse(jsonMatch[0]));
+
+  const raw = jsonMatch[0];
+
+  try {
+    return ResumeAnalysisSchema.parse(JSON.parse(raw));
+  } catch (_firstError) {
+    try {
+      const repaired = repairJson(raw);
+      return ResumeAnalysisSchema.parse(JSON.parse(repaired));
+    } catch (_secondError) {
+      console.error("Failed to parse AI response. Raw text:", text.substring(0, 500));
+      throw new Error("AI returned malformed JSON after repair attempts");
+    }
+  }
+}
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function analyzeResume(
@@ -149,12 +187,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const CONCURRENCY = 3;
+    const REQUEST_DELAY_MS = 12_000;
     const results = [];
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
-      const batch = files.slice(i, i + CONCURRENCY);
-      const batchResults = await Promise.all(batch.map(processFile));
-      results.push(...batchResults);
+    for (let i = 0; i < files.length; i++) {
+      if (i > 0) await delay(REQUEST_DELAY_MS);
+      const result = await processFile(files[i]);
+      results.push(result);
     }
 
     results.sort((a, b) => b.rating - a.rating);
