@@ -48,11 +48,11 @@ function parseJsonResponse(text: string) {
 
   try {
     return ResumeAnalysisSchema.parse(JSON.parse(raw));
-  } catch (_firstError) {
+  } catch {
     try {
       const repaired = repairJson(raw);
       return ResumeAnalysisSchema.parse(JSON.parse(repaired));
-    } catch (_secondError) {
+    } catch {
       console.error("Failed to parse AI response. Raw text:", text.substring(0, 500));
       throw new Error("AI returned malformed JSON after repair attempts");
     }
