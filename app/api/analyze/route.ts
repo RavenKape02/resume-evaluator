@@ -69,7 +69,7 @@ async function analyzeResume(
   jobContext: string
 ) {
   const { text } = await generateText({
-    model: groq("llama-3.3-70b-versatile"),
+    model: groq("llama-meta-llama/llama-4-scout-17b-16e-instruct.3-70b-versatile"),
     system: SYSTEM_PROMPT,
     prompt: `Evaluate the following resume for the role of "${roleTitle}".${jobContext ? `\n\nAdditional job context:\n${jobContext}` : ""}
 
